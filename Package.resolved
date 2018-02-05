@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "MyMathLib",
+        "repositoryURL": "/Users/yannmeurisse/Documents/Xcode_projects/MyMathLib",
+        "state": {
+          "branch": null,
+          "revision": "7f51334b7838a1abf4570e7a02e94ce008827e11",
+          "version": "1.0.0"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
