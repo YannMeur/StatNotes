@@ -3,7 +3,7 @@
 //  NotesStat
 //
 //  Created by Yann Meurisse on 05/02/2018.
-//
+// 
 
 import Cocoa
 

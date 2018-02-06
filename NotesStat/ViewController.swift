@@ -218,9 +218,14 @@ class ViewController: NSViewController,XMLParserDelegate
          let indC = partitionEnIndices[i+1]
          matTransition[indL!,indC!] += 1
       }
+      matTransition = (matTransition / (dicoNote2Ind.count-1))!
+      print("matTransition (\(matTransition.dim())) :\n\(matTransition)")
       
-      print("matTransition (\(matTransition.dim()) :\n\(matTransition))")
-       
+      for i in 0...1
+      {
+         matTransition = (matTransition * matTransition)!
+      }
+      print("matTransition^3 :\n\(matTransition)")
    }
 
    /**********************************************************************************************************
