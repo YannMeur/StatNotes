@@ -19,10 +19,12 @@ class ViewController: NSViewController,XMLParserDelegate
    var nbNotes = 0            // nombre de notes différentes
    //var coupleNoteNb: (note: Note, nb: Int) //
    var arrayNoteNombre: [(note: Note , nb: Int)] = [] // Tableau de tuples (note,nb occurences)
+   var arrayNote: [Note] = []    // Tableau des ≠ Note utilisées, classé dans l'ordre croissant
    
    //var pitch = Pitch()
    var step = ""
    var octave = 0
+   var alter = ""
    var type = ""
    var accidental = ""        // "sharp":dièse ou "flat":bémol ou "natural":bécarre ou ...
    var dot = false            // note pointée
@@ -32,6 +34,13 @@ class ViewController: NSViewController,XMLParserDelegate
    var repeatDirection = ""   // direction de la répétition "backward" ou "forward"
    
    var foundCharacters = ""
+   
+   var ancienStr = ""   // copie du .xml de départ à partir duquel on construire le nouveau (détruit au fur
+                        // et à mesure)
+   var newStr = ""      // nouvelle String obtenue progressivement à partir du .xml de départ (ancienStr)
+                        // en remplaçant les anciennes notes par les nouvelles obtenues par leur indice
+                        // dans "tableauFinalNotesGenerees"
+   var tableauFinalNotesGenerees: [Note] = []
    
    /**********************************************************************************************************
     
@@ -92,14 +101,12 @@ class ViewController: NSViewController,XMLParserDelegate
          self.octave = Int(self.foundCharacters)!
       }
       
-      /*
-      if elementName == "pitch"
+      
+      if elementName == "alter"
       {
-         let tempPitch = Pitch()
-         tempPitch.step = self.step
-         tempPitch.octave = self.octave
+         self.alter = self.foundCharacters
       }
-      */
+      
       
       if elementName == "type"
       {
@@ -127,6 +134,7 @@ class ViewController: NSViewController,XMLParserDelegate
          let tempNote = Note();  // on génère une nouvelle note
          tempNote.step = self.step
          tempNote.octave = self.octave
+         tempNote.alter = self.alter
          tempNote.type = self.type
          tempNote.dot = self.dot                // champ optionnel
          tempNote.tied = self.tied              // champ optionnel
@@ -139,6 +147,7 @@ class ViewController: NSViewController,XMLParserDelegate
          self.dot = false
          self.tied = ""
          self.accidental = ""
+         self.alter = ""
       }
       
       // Si on atteint </measure>
@@ -190,6 +199,10 @@ class ViewController: NSViewController,XMLParserDelegate
       print(sortedArray)
       print("______________________arrayNoteNombre________________________")
       print(self.arrayNoteNombre)
+      print("______________________arrayNote________________________")
+      self.arrayNote = self.arrayNoteNombre.map {$0.note}
+      print(self.arrayNote)
+
       
       // Création du dictionnary associant à chacune des notes utilisées un indice de 0...self.nbNotes-1
       // dans l'ordre croissant des notes (C4 D4 E4 F4 G4 A4 B4 C5 ...)
@@ -218,14 +231,59 @@ class ViewController: NSViewController,XMLParserDelegate
          let indC = partitionEnIndices[i+1]
          matTransition[indL!,indC!] += 1
       }
-      matTransition = (matTransition / (dicoNote2Ind.count-1))!
+      matTransition = matTransition.stochastique()!
       print("matTransition (\(matTransition.dim())) :\n\(matTransition)")
       
-      for i in 0...1
+      /*
+      for i in 0...3
       {
          matTransition = (matTransition * matTransition)!
       }
-      print("matTransition^3 :\n\(matTransition)")
+      print("matTransition^4 :\n\(matTransition)")
+      
+      print("______________________Tests random ______________________")
+      let proba = [0.1, 0.4, 0.0, 0.5]
+      for _ in 0...20
+      {
+         print(" \(Int.random(proba: proba))")
+      }
+      */
+      // ---- Génération d'une suite de notes selon la matrice de transition (ordre1) -----
+      // D'abord un tableau d'entiers représentant ces notes
+      // on part d'un Ré : D5 : 8
+      let nbNotesAGenerer = notes.count-1
+      print("nbNotesAGenerer : \(nbNotesAGenerer)")
+      var tableauNotesGenerees: [Int] = [8]
+      for i in 0..<nbNotesAGenerer
+      {
+         let lesProbas: [Double] = matTransition.ligne(tableauNotesGenerees[i]).array()
+         tableauNotesGenerees.append(Int.random(proba: lesProbas))
+      }
+      
+      
+      // on transforme ce tableau de nombres (Int) en tableau de notes (Note)
+      for i in 0...nbNotesAGenerer
+      {
+         let nouvelleNote = Note(dicoNote2Ind.someKey(forValue: tableauNotesGenerees[i])!)
+         nouvelleNote.numMesure = notes[i].numMesure  // on met à jour le n° de mesure de la nouvelle note
+         tableauFinalNotesGenerees.append(nouvelleNote)
+      }
+      //tableauNotesGenerees.map({dicoNote2Ind.someKey(forValue: $0)})
+      print("tableauFinalNotesGenerees :\n \(tableauFinalNotesGenerees)")
+      
+      // ---- Génération d'un tableau de tuples (ancienneNote, nouvelleNote) -----
+      var ancienne2nouvelleNote: [(ancN: Note , nouvN: Note)] = []
+      indice = 0
+      //print("notes.count : \(notes.count)   notes.count : \(notes.count)")
+      for note in self.notes
+      {
+         ancienne2nouvelleNote.append((note,tableauFinalNotesGenerees[indice]))
+         indice += 1
+      }
+      //print("ancienne2nouvelleNote : \(ancienne2nouvelleNote)")
+      
+      //------------------- Génère le nouveau fichier ------------------------------
+      genereNewFile()
    }
 
    /**********************************************************************************************************
@@ -256,6 +314,7 @@ class ViewController: NSViewController,XMLParserDelegate
                      if (self.notes[j].step == self.notes[i].step)
                      {
                         self.notes[j].accidental = "sharp"
+                        self.notes[j].alter = "1"
                      }
                   }
                }
@@ -274,6 +333,7 @@ class ViewController: NSViewController,XMLParserDelegate
                      if (self.notes[j].step == self.notes[i].step)
                      {
                         self.notes[j].accidental = "flat"
+                        self.notes[j].alter = "-1"
                      }
                   }
                }
@@ -284,22 +344,25 @@ class ViewController: NSViewController,XMLParserDelegate
    
    /**********************************************************************************************************
     En fonction de l'armure, on applique les altérations éventuelles à toutes les notes
-    nbOfAccidentals = 0   // nb de dièses (si >0) ou bémols (si <0) à la clef
+    nbOfAccidentals : nb de dièses (si >0) ou bémols (si <0) à la clef
     *********************************************************************************************************/
    func propageAlterationALaClef()
    {
       var notesCibles: [String] = []
       var alteration = ""
+      var alter = ""
 
       if nbOfAccidentals>0
       {
          notesCibles = Array(Note.ordreSharp[0...nbOfAccidentals-1])
          alteration = "sharp"
+         alter = "1"
       }
       if nbOfAccidentals<0
       {
          notesCibles = Array(Note.ordreFlat[0...nbOfAccidentals-1])
          alteration = "flat"
+         alter = "-1"
       }
       
       for note in self.notes
@@ -307,6 +370,8 @@ class ViewController: NSViewController,XMLParserDelegate
          if notesCibles.contains(note.step)
          {
             note.accidental = alteration
+            note.alter = alter
+            note.alterParArmure = true
          }
       }
 
@@ -321,13 +386,14 @@ class ViewController: NSViewController,XMLParserDelegate
       // ---- Construit le dictionnary : nbOccNotes ---------------------------------
       for note in self.notes
       {
-         if let val = self.nbOccNotes[note]
+         let noteTemp = Note(note)
+         if let val = self.nbOccNotes[noteTemp]
          {
             // now val is not nil and the Optional has been unwrapped, so use it
-            self.nbOccNotes[note] = val+1
+            self.nbOccNotes[noteTemp] = val+1
          } else
          {
-            self.nbOccNotes[note] = 1
+            self.nbOccNotes[noteTemp] = 1
          }
       }
       // ----- Construit le tableau de tuples : arrayNoteNombre ------------------
@@ -339,6 +405,188 @@ class ViewController: NSViewController,XMLParserDelegate
       self.arrayNoteNombre = self.arrayNoteNombre.sorted(by: { $0.0 < $1.0 })
 
       return self.nbOccNotes.count
+   }
+   
+   /**********************************************************************************************************
+    Génère le nouveau fichier des notes
+    *********************************************************************************************************/
+   func genereNewFile()
+   {
+      /*----------------------------------------------------------------------------
+       Pour chaque note :
+       1- On lit dans ancienStr tout ce qui précède <note>
+         1-1 On supprime de ancienStr
+       2- On le concatène à newStr
+       3- On lit tout ce qu'il y a entre <note> et </note>
+         3-1 On supprime de ancienStr
+       4- On modifie la note
+         4-1 On change le nom
+         4-2 On ajoute ou on supprime un "accident" éventuel (attention aux accidents à la clef)
+       5- On concatène à newStr
+       6- Quand on a fini avec les notes
+         6-1 On lit la fin de ancienStr
+         6-2 On concatène à newStr
+       7- On écrit newStr dans un fichier
+      ----------------------------------------------------------------------------*/
+      
+      /*----------------------------------------------------------------------------
+       - Pour chaque note
+      ----------------------------------------------------------------------------*/
+      for i in 0..<self.notes.count
+      //for i in 0..<20
+      {
+         var rangeLowerBound = ancienStr.range(of: "<")  // Uniquement pour déclarer ces 2 var
+         var rangeUpperBound = rangeLowerBound           // qui seront utilisées tout au long de la suite
+         
+         //--- 1- On lit dans ancienStr tout ce qui précède <note>------------------------
+         if let range = ancienStr.range(of: "<note>")
+         {
+            let substring = String(ancienStr[..<range.lowerBound])
+            ancienStr.removeSubrange(..<range.lowerBound)   //    1-1 On supprime de ancienStr
+            
+            newStr += substring                             // 2- On le concatène à newStr
+         }
+         else {
+            print("String not present")
+         }
+         //==== 3- On lit tout ce qu'il y a entre <note> et </note> (mis dans -> "substring")
+         if let range = ancienStr.range(of: "</note>")
+         {
+            var substring = String(ancienStr[..<range.lowerBound])
+            ancienStr.removeSubrange(..<range.lowerBound)   //    3-1 On supprime de ancienStr
+            
+            print("ancienStr.count = \(ancienStr.count)")
+            
+            
+            //=== 4- On modifie la note
+            //------------ INUTILE ! -------
+            /*/    -- D'abord on cherche de quelle note il s'agit  => INUTILE !
+            //       -- On cherche le "step"
+            let step = substring.substringWithStringBounds(de: "<step>", a: "</step>")
+            print("step = " + step)
+            //       -- On cherche l'"octave"
+            let octave = substring.substringWithStringBounds(de: "<octave>", a: "</octave>")
+            print("octave = " + octave)
+            --------------------------------*/
+            // --- On cherche et supprime une altération éventuelle
+            if let lowerBound = substring.range(of: "<alter>")?.lowerBound,
+               let upperBound = substring.range(of: "</alter>")?.upperBound
+            {
+               substring.replaceSubrange(lowerBound..<upperBound, with: "")
+            }
+            if let lowerBound = substring.range(of: "<accidental>")?.lowerBound,
+               let upperBound = substring.range(of: "</accidental>")?.upperBound
+            {
+               substring.replaceSubrange(lowerBound..<upperBound, with: "")
+            }
+            // --- On remplace l'ancien step par le nouveau
+            if let lowerBound = substring.range(of: "<step>")?.upperBound,
+               let upperBound = substring.range(of: "</step>")?.lowerBound
+            {
+               substring.replaceSubrange(lowerBound..<upperBound, with: tableauFinalNotesGenerees[i].step)
+            }
+            // --- On remplace l'ancien octave par la nouvelle
+            if let lowerBound = substring.range(of: "<octave>")?.upperBound,
+               let upperBound = substring.range(of: "</octave>")?.lowerBound
+            {
+               substring.replaceSubrange(lowerBound..<upperBound, with: String(tableauFinalNotesGenerees[i].octave))
+            }
+            // --- Reste à écrire les accidents éventuels ...
+            // Si la note est altérée mais pas par l'armure
+            // TODO : traiter les cas
+            //           1. de plusieurs altération de même step dans la même mesure
+            //           2. de bécarres
+            let laNouvNote = tableauFinalNotesGenerees[i]
+            if (laNouvNote.alter != "" && !laNouvNote.alterParArmure)
+            {
+               if let lowerBound = substring.range(of: "</step>")?.upperBound,
+                  let upperBound = substring.range(of: "<octave>")?.lowerBound
+               {
+                  let newAlter = "\n\t\t\t\t\t<alter>"+laNouvNote.alter+"</alter>\n\t\t\t\t\t"
+                  substring.replaceSubrange(lowerBound..<upperBound, with: newAlter)
+               }
+               if let lowerBound = substring.range(of: "</type>")?.upperBound,
+                  let upperBound = substring.range(of: "<stem")?.lowerBound
+               {
+                  let newAccidental = "\n\t\t\t\t\t<accidental>\(laNouvNote.accidental)</accidental>\n\t\t\t\t\t"
+                  substring.replaceSubrange(lowerBound..<upperBound, with: newAccidental)
+               }
+            
+            }
+            
+            newStr += substring                             // 2- On le concatène à newStr
+         }
+         else {
+            print("String not present")
+         }
+      }
+      newStr += ancienStr
+
+      /*------------------------------------------------------------------------------
+       on ecrit "newStr" dans le fichier "newAria II.xml"
+       Rem :
+       var dirCourant: String = FileManager.default.currentDirectoryPath
+       print("dirCourant = "+dirCourant)
+       /Users/yannmeurisse/Library/Containers/com.YMeurisse.NotesStat/Data
+       ------------------------------------------------------------------------------*/
+      /*  1ère version (marche !) ------*/
+      let fileName = "newAria II"
+      let dir = try? FileManager.default.url(for: .documentDirectory,
+                                             in: .userDomainMask, appropriateFor: nil, create: true)
+      //print("dir = \(String(describing: dir))")
+      //dir = Optional(file:///Users/yannmeurisse/Library/Containers/com.YMeurisse.NotesStat/Data/Documents/)
+      
+      // If the directory was found, we write a file to it and read it back
+      if let fileURL = dir?.appendingPathComponent(fileName).appendingPathExtension("xml")
+      {
+         // Write to the file named newFile
+         do
+         {
+            try newStr.write(to: fileURL, atomically: true, encoding: .utf8)
+         } catch {
+            print("Failed writing to URL: \(fileURL), Error: " + error.localizedDescription)
+         }
+      }
+
+      /*  2ème version (marche pas !)------
+      if let filepath = Bundle.main.path(forResource: "newAria II", ofType: "xml")
+      {
+         print("filepath = \(String(describing: filepath))")
+         do {
+            try newStr.write(toFile: filepath, atomically: true, encoding: .utf8)
+            } catch {
+               // contents could not be loaded
+               print("Pb lors de l'écriture du fichier")
+            }
+      } else {
+         print("Pb avec le filepath du fichier")
+      }
+      ------*/
+      /*  2ème version (marche mais ...location ?)------
+      let file = "newAria II.xml"
+      
+      let dirs: [String]? = NSSearchPathForDirectoriesInDomains(FileManager.SearchPathDirectory.documentDirectory, FileManager.SearchPathDomainMask.allDomainsMask, true)
+      
+      //print("dirs: \(String(describing: dirs))")
+      // dirs: Optional(["/Users/yannmeurisse/Library/Containers/com.YMeurisse.NotesStat/Data/Documents"])
+      
+      if (dirs != nil)
+      {
+         let directories:[String] = dirs!
+         let dirs = directories[0]; //documents directory
+         let path = dirs+file
+         
+         //writing
+         do {
+            try newStr.write(toFile: path, atomically: true, encoding: .utf8)
+         } catch {
+            // contents could not be loaded
+            print("Pb lors de l'écriture du fichier")
+         }
+       }
+      ------*/
+      
+
    }
    
    /**********************************************************************************************************
@@ -356,6 +604,7 @@ class ViewController: NSViewController,XMLParserDelegate
             xmlString = try String(contentsOfFile: filepath)
             //xmlString = xmlString.components(separatedBy: ["\t", "\r", "\n"]).joined() // "yuahl"
             //print(xmlString)
+            ancienStr = xmlString
          } catch {
             // contents could not be loaded
             print("xmlString could not be loaded")

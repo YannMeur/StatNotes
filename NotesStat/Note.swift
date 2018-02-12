@@ -15,12 +15,13 @@ class Note: Comparable, Hashable, CustomStringConvertible
    //var pitch = Pitch()
    var step = ""        // "C", "D", "E" ....
    var octave: Int = 0  // ... 3, 4 5 ...
+   var alter = ""       // nb de 1/2 ton de l'altération : "1"-->dièse  "-1"-->bémol
    var type = ""        // "whole", "eighth", "16th" ...
    var accidental = ""  // "sharp"=dièse  "flat"=bémol "natural"=bécarre
    var dot = false      // note pointée
    var tied = ""        // note liée ? ""=non, "start"=avec suivante, "stop"=avec précédente
    var numMesure = 0    // n° de la mesure à laquelle appartient la note
-   
+   var alterParArmure = false // y a-t-il une altération donnée par l'armure ?
    
    // pour associer un nb à une note pour la relation d'ordre
    let note2indDico: [String: Int] = ["C": 10,"D": 20,"E": 30,"F": 40,"G": 50,"A": 60, "B": 70]
@@ -54,10 +55,41 @@ class Note: Comparable, Hashable, CustomStringConvertible
       return self.hashString().hashValue
    }
    
+   /********************************************************
+    Initialiseurs
+    *********************************************************/
+   public init()
+   {
+      self.step = ""
+      self.octave = 0
+      self.alter = ""
+      self.type = ""
+      self.accidental = ""
+      self.dot = false
+      self.alterParArmure = false
+      self.tied = ""
+      self.numMesure = 0
+   }
+
+   public init(_ N: Note)
+   {
+      self.step = N.step
+      self.octave = N.octave
+      self.alter = N.alter
+      self.type = N.type
+      self.accidental = N.accidental
+      self.dot = N.dot
+      self.alterParArmure = N.alterParArmure
+   }
+
+   
+   
+   
+   
    func hashString() -> String
    {
       var result = ""
-      result = self.step + "\(self.octave)" + self.glyphe + " "
+      result = self.step + "\(self.octave)" + self.glyphe
       return result
    }
 
@@ -76,7 +108,7 @@ class Note: Comparable, Hashable, CustomStringConvertible
    
    var description: String
    {
-      return self.step + "\(self.octave)" + self.glyphe
+      return self.step + "\(self.octave)" + self.glyphe+"m\(self.numMesure)"
    }
 
    /*****************************************************************************************
