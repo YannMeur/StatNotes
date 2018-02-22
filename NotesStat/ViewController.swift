@@ -173,6 +173,7 @@ class ViewController: NSViewController,XMLParserDelegate
     *********************************************************************************************************/
    func parserDidEndDocument(_ parser: XMLParser)
    {
+      /*
       var indice = 0
       for note in self.notes
       {
@@ -181,8 +182,20 @@ class ViewController: NSViewController,XMLParserDelegate
          //print("note\(indice) : " + String(describing: note))
          print("note\(indice) :  \(note)")
       }
-      
+ 
       print("Nombre de mesures : \(self.mesures.count)")
+      */
+      
+      // pour vérif
+      var uneGamme = Gamme(nombre: 0, accident: "flat",mode: "M")
+      print("\nGamme : \(uneGamme) et ses notes : \(uneGamme.notes))")
+      print("et sa gamme relative = \(uneGamme.gammeRelative()) : \(uneGamme.gammeRelative().notes)")
+      
+      uneGamme = Gamme(nombre: 1, accident: "flat",mode: "m")
+      print("\nGamme : \(uneGamme) et ses notes : \(uneGamme.notes))")
+      print("et sa gamme relative = \(uneGamme.gammeRelative()) : \(uneGamme.gammeRelative().notes)")
+
+      
       
       //propageAlterationInMeasure()
       propageAlterationALaClef()
@@ -207,7 +220,7 @@ class ViewController: NSViewController,XMLParserDelegate
       // Création du dictionnary associant à chacune des notes utilisées un indice de 0...self.nbNotes-1
       // dans l'ordre croissant des notes (C4 D4 E4 F4 G4 A4 B4 C5 ...)
       var dicoNote2Ind: [Note: Int] = [:]
-      indice = 0
+      var indice = 0
       for (note,_) in self.arrayNoteNombre
       {
          dicoNote2Ind[note] = indice
@@ -219,10 +232,9 @@ class ViewController: NSViewController,XMLParserDelegate
       // son indice obtenu dans le dico. dicoNote2Ind
       let partitionEnIndices = self.notes.map({ dicoNote2Ind[$0]})
       print("______________________partitionEnIndices______________________")
-      print(partitionEnIndices)
+      //print(partitionEnIndices)
       
-      // ---- Création de la matrice de transition (ordre1) -----
-      //var matTransition = Matrice(Array(repeating: 0.0, count: self.nbNotes*self.nbNotes),nbl: self.nbNotes,nbc: self.nbNotes)
+      // ============ Création de la matrice de transition (ordre1) ==================================
       var matTransition = Matrice(nbl: self.nbNotes)
       
       for i in 0...partitionEnIndices.count-2
@@ -232,44 +244,82 @@ class ViewController: NSViewController,XMLParserDelegate
          matTransition[indL!,indC!] += 1
       }
       matTransition = matTransition.stochastique()!
-      print("matTransition (\(matTransition.dim())) :\n\(matTransition)")
+      //print("matTransition (\(matTransition.dim())) :\n\(matTransition)")
+ 
       
-      /*
-      for i in 0...3
+      // ============ Création de la matrice de transition réduite (ordre2) ============================
+      // On construit un Array de (note(Int) à t-2, note(Int) à t-1) où l'indice -> indice ligne pour matrice
+      var arrayCoupleNotes: [CoupleInt] = []
+      for i in 0...partitionEnIndices.count-3
       {
-         matTransition = (matTransition * matTransition)!
+         let coupleNotes: CoupleInt = CoupleInt(partitionEnIndices[i]!,partitionEnIndices[i+1]!)
+         if !arrayCoupleNotes.contains(coupleNotes)
+         {
+            arrayCoupleNotes.append(coupleNotes)
+         }
       }
-      print("matTransition^4 :\n\(matTransition)")
       
-      print("______________________Tests random ______________________")
-      let proba = [0.1, 0.4, 0.0, 0.5]
-      for _ in 0...20
+      var matTransitionO2 = Matrice(nbl: arrayCoupleNotes.count, nbc: self.nbNotes)
+      for i in 0...partitionEnIndices.count-3
       {
-         print(" \(Int.random(proba: proba))")
+         let indL = arrayCoupleNotes.index(of: CoupleInt(partitionEnIndices[i]!,partitionEnIndices[i+1]!))
+         let indC = partitionEnIndices[i+2]
+         matTransitionO2[indL!,indC!] += 1
       }
-      */
-      // ---- Génération d'une suite de notes selon la matrice de transition (ordre1) -----
-      // D'abord un tableau d'entiers représentant ces notes
-      // on part d'un Ré : D5 : 8
-      let nbNotesAGenerer = notes.count-1
-      print("nbNotesAGenerer : \(nbNotesAGenerer)")
-      var tableauNotesGenerees: [Int] = [8]
-      for i in 0..<nbNotesAGenerer
+      matTransitionO2 = matTransitionO2.stochastique()!
+      // =================================================================================================
+      
+      
+      
+      
+      
+      // ============== Génération d'une suite de notes selon la matrice de transition  ===========
+      //--- à l'ordre 1 ou 2 --------
+      let ordre = 2
+      var nbNotesAGenerer = 0
+      var tableauNotesGenerees: [Int] = []
+      // en fonction de l'ordre de la matrice de transition
+      if ordre == 1
       {
-         let lesProbas: [Double] = matTransition.ligne(tableauNotesGenerees[i]).array()
-         tableauNotesGenerees.append(Int.random(proba: lesProbas))
+         // D'abord un tableau d'entiers représentant ces notes
+         // on part d'un Ré : D5 : 8
+         nbNotesAGenerer = notes.count-1
+         print("nbNotesAGenerer : \(nbNotesAGenerer)")
+         tableauNotesGenerees = [8]
+         for i in 0..<nbNotesAGenerer
+         {
+            let lesProbas: [Double] = matTransition.ligne(tableauNotesGenerees[i]).array()
+            tableauNotesGenerees.append(Int.random(proba: lesProbas))
+         }
       }
+      if ordre == 2
+      {
+         // D'abord un tableau d'entiers représentant ces notes
+         // on part d'un Ré : D5 : 8 suivi d'un Ré
+         nbNotesAGenerer = notes.count-2
+         print("nbNotesAGenerer : \(nbNotesAGenerer)")
+         tableauNotesGenerees = [8,8]
+         for i in 0..<nbNotesAGenerer
+         {
+            // on déduit l'indice ligne de la matrice de trans. du dernier couple de notes
+            // à partir de "arrayCoupleNotes"
+            let indLigne = arrayCoupleNotes.index(of: CoupleInt(tableauNotesGenerees[i],tableauNotesGenerees[i+1]))
+            let lesProbas: [Double] = matTransitionO2.ligne(indLigne!).array()
+            tableauNotesGenerees.append(Int.random(proba: lesProbas))
+         }
+      }
+
       
       
       // on transforme ce tableau de nombres (Int) en tableau de notes (Note)
-      for i in 0...nbNotesAGenerer
+      for i in 0..<tableauNotesGenerees.count
       {
          let nouvelleNote = Note(dicoNote2Ind.someKey(forValue: tableauNotesGenerees[i])!)
          nouvelleNote.numMesure = notes[i].numMesure  // on met à jour le n° de mesure de la nouvelle note
          tableauFinalNotesGenerees.append(nouvelleNote)
       }
-      //tableauNotesGenerees.map({dicoNote2Ind.someKey(forValue: $0)})
-      print("tableauFinalNotesGenerees :\n \(tableauFinalNotesGenerees)")
+      
+      //print("tableauFinalNotesGenerees :\n \(tableauFinalNotesGenerees)")   // pour verif
       
       // ---- Génération d'un tableau de tuples (ancienneNote, nouvelleNote) -----
       var ancienne2nouvelleNote: [(ancN: Note , nouvN: Note)] = []
@@ -280,10 +330,11 @@ class ViewController: NSViewController,XMLParserDelegate
          ancienne2nouvelleNote.append((note,tableauFinalNotesGenerees[indice]))
          indice += 1
       }
-      //print("ancienne2nouvelleNote : \(ancienne2nouvelleNote)")
+      //============================================================================================
       
       //------------------- Génère le nouveau fichier ------------------------------
-      genereNewFile()
+      //genereNewFile("AriaII-O2")
+
    }
 
    /**********************************************************************************************************
@@ -408,9 +459,10 @@ class ViewController: NSViewController,XMLParserDelegate
    }
    
    /**********************************************************************************************************
-    Génère le nouveau fichier des notes
+            Génère le nouveau fichier des notes
+    Utilise tableauFinalNotesGenerees
     *********************************************************************************************************/
-   func genereNewFile()
+   func genereNewFile(_ nomFichier: String)
    {
       /*----------------------------------------------------------------------------
        Pour chaque note :
@@ -454,9 +506,6 @@ class ViewController: NSViewController,XMLParserDelegate
          {
             var substring = String(ancienStr[..<range.lowerBound])
             ancienStr.removeSubrange(..<range.lowerBound)   //    3-1 On supprime de ancienStr
-            
-            print("ancienStr.count = \(ancienStr.count)")
-            
             
             //=== 4- On modifie la note
             //------------ INUTILE ! -------
@@ -530,7 +579,8 @@ class ViewController: NSViewController,XMLParserDelegate
        /Users/yannmeurisse/Library/Containers/com.YMeurisse.NotesStat/Data
        ------------------------------------------------------------------------------*/
       /*  1ère version (marche !) ------*/
-      let fileName = "newAria II"
+      let fileName = nomFichier
+
       let dir = try? FileManager.default.url(for: .documentDirectory,
                                              in: .userDomainMask, appropriateFor: nil, create: true)
       //print("dir = \(String(describing: dir))")
@@ -547,7 +597,6 @@ class ViewController: NSViewController,XMLParserDelegate
             print("Failed writing to URL: \(fileURL), Error: " + error.localizedDescription)
          }
       }
-
       /*  2ème version (marche pas !)------
       if let filepath = Bundle.main.path(forResource: "newAria II", ofType: "xml")
       {
