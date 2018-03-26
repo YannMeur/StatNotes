@@ -4,6 +4,7 @@
 //
 //  Created by Yann Meurisse on 14/02/2018.
 //
+//  Version 1.1 au 01/03/2018.
 
 import Foundation
 
@@ -82,15 +83,55 @@ class Gamme: CustomStringConvertible
    
    /**
     Tableau classé des Note constituant la Gamme
+    TODO: Il ne faudrait pas de mélange dièse-bémols
+    
     */
+   /***
+    var notes: [Note] {
+    get {
+    var result = [self.fondamentale]
+    
+    for i in 0..<suiteDemiTons.count
+    {
+    result.append(result[i].shift(nb: suiteDemiTons[i])!)
+    }
+    // il faut maintenant vérifier que chaque degré apparait une
+    // et une seule fois
+    
+    return result
+    }
+    }
+    ***/
    var notes: [Note] {
       get {
          var result = [self.fondamentale]
-         
-         for i in 0..<suiteDemiTons.count
+         for i in 1...6
          {
-            result.append(result[i].shift(nb: suiteDemiTons[i])!)
+            result.append(self.fondamentale.shift(nd: i)!)
          }
+         
+         // on altère maintenant éventuellement chaque note
+         for i in 1...6
+         {
+            // distance en 1/2 Tons entre la note courante et la précedente
+            var distance = result[i].index() - result[i-1].index()
+            if distance < 0
+            {
+               distance += 12
+            }
+            // distance qu'il faudrait
+            let dist_cible = suiteDemiTons[i-1]
+            if dist_cible > distance
+            {
+               result[i].alter = "1"
+               result[i].accidental = "sharp"
+            } else if dist_cible < distance
+            {
+               result[i].alter = "-1"
+               result[i].accidental = "flat"
+            }
+         }
+         result.append(Note(result[0]))
          return result
       }
    }
@@ -210,3 +251,4 @@ class Gamme: CustomStringConvertible
    }
 }
 /*********************************************************************/
+

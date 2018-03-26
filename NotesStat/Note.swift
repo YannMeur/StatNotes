@@ -5,6 +5,7 @@
 //  Created by Yann Meurisse on 22/01/2018.
 //  Copyright © 2018 Yann Meurisse. All rights reserved.
 //
+//  Version 1.1 au 26/02/2018.
 
 import Foundation
 
@@ -13,7 +14,7 @@ class Note: Comparable, Hashable, CustomStringConvertible
    
    // --- Propriétés d'instance ---
    //var pitch = Pitch()
-   var step = ""        // "C", "D", "E" ....
+   var step = ""        // "C", "D", "E" .... ou " " pour rest
    var octave: Int = 0  // ... 3, 4 5 ...
    var alter = ""       // nb de 1/2 ton de l'altération : "1"-->dièse  "-1"-->bémol
    var type = ""        // "whole", "eighth", "16th" ...
@@ -24,21 +25,31 @@ class Note: Comparable, Hashable, CustomStringConvertible
    var alterParArmure = false // y a-t-il une altération donnée par l'armure ?
    
    // pour associer un nb à une note pour la relation d'ordre
-   let note2indDico: [String: Int] = ["C": 10,"D": 20,"E": 30,"F": 40,"G": 50,"A": 60, "B": 70]
+   let note2indDico: [String: Int]  = ["C": 10,"D": 20,"E": 30,"F": 40,"G": 50,"A": 60, "B": 70]
    let note2indDico2: [String: Int] = ["C": 0,"D": 2,"E": 4,"F": 5,"G": 7,"A": 9, "B": 11]
+   let note2degres: [String: Int]   = ["C": 0,"D": 1,"E": 2,"F": 3,"G": 4,"A": 5, "B": 6]
    // pour associer une note anglo-saxonne à une note française
-   let noteA2noteFDico: [String: String] = ["C": "Do","D": "Ré","E": "Mi","F": "Fa","G": "Sol","A": "La","B": "Si"]
+   let noteA2noteFDico: [String: String] = ["C": "Do","D": "Ré","E": "Mi","F": "Fa","G": "Sol","A": "La","B": "Si","": ""]
    // et réciproquement
-   let noteF2noteADico: [String: String] = [ "Do": "C","Ré": "D","Mi": "E","Fa": "F","Sol": "G" ,"La": "A","Si": "B"]
+   let noteF2noteADico: [String: String] = [ "Do": "C","Ré": "D","Mi": "E","Fa": "F","Sol": "G" ,"La": "A","Si": "B","": ""]
    
    // --- Propriétés calculées ---
    var stepF: String {
       get{ return noteA2noteFDico[self.step]! }
       set{ step = noteF2noteADico[newValue]! }
    }
-   
-   
-   
+   // Les intervalles
+   var seconde: Note { get{ return self.shift(nb: 2)! }}
+   var tierce_m: Note { get{ return self.shift(nb: 3)! }}
+   var tierce_M: Note { get{ return self.shift(nb: 4)! }}
+   var quarte: Note { get{ return self.shift(nb: 5)! }}
+   var quinte_dim: Note { get{ return self.shift(nb: 6)! }}
+   var quinte: Note { get{ return self.shift(nb: 7)! }}
+   var quinte_aug: Note { get{ return self.shift(nb: 8)! }}
+   var sixte: Note { get{ return self.shift(nb: 9)! }}
+   var septieme_m: Note { get{ return self.shift(nb: 10)! }}
+   var septieme_M: Note { get{ return self.shift(nb: 11)! }}
+   var oct: Note { get{ return self.shift(nb: 12)! }}
    
    // --- Propriétés de class (static) ---
    // ordre des dièses selon l'armure : FA DO SOL RE LA MI SI
@@ -50,19 +61,81 @@ class Note: Comparable, Hashable, CustomStringConvertible
    static let becarreGlyphe = "\u{266e}"
    static let dieseGlyphe = "\u{266f}"
    
+   static let wholeRestGlyphe                   = "\u{1D13B}"
+   static let halfRestGlyphe                    = "\u{1D13C}"
+   static let quarterRestGlyphe                 = "\u{1D13D}"
+   static let eighthRestGlyphe                  = "\u{1D13E}"
+   static let sixteenthRestGlyphe               = "\u{1D13F}"
+   static let thirtySecondRestGlyphe            = "\u{1D140}"
+   static let sixtyFourthSecondRestGlyphe       = "\u{1D141}"
+   static let oneHundredTwentyEighthRestGlyphe  = "\u{1D142}"
+   
+   static let wholeNoteGlyphe                   = "\u{1D15D}"
+   static let halfNoteGlyphe                    = "\u{1D15E}"
+   static let quarterNoteGlyphe                 = "\u{1D15F}"
+   static let eighthNoteGlyphe                  = "\u{1D160}"
+   static let sixteenthNoteGlyphe               = "\u{1D161}"
+   static let thirtySecondNoteGlyphe            = "\u{1D162}"
+   static let sixtyFourthSecondNoteGlyphe       = "\u{1D163}"
+   static let oneHundredTwentyEighthNoteGlyphe  = "\u{1D164}"
+
    var glyphe: String
    {
-      switch self.accidental
+      var result = ""
+      if self.step == ""   // il s'agit d'un silence
       {
-      case "sharp":
-         return Note.dieseGlyphe
-      case "natural":
-         return Note.becarreGlyphe
-      case "flat":
-         return Note.bemolGlyphe
-      default:
-         return ""
+         switch self.type
+         {
+            case "whole":
+               result = Note.wholeRestGlyphe
+            case "half":
+               result =  Note.halfRestGlyphe
+            case "eighth":
+               result = Note.eighthRestGlyphe
+            case "quarter":
+               result = Note.quarterRestGlyphe
+            case "16th":
+               result = Note.sixteenthRestGlyphe
+            default:                            // TODO: à compléter
+               result = "??"
+         }
+
       }
+      else              // il s'agit d'une vraie note
+      {
+         switch self.type
+         {
+            case "whole":
+               result = Note.wholeNoteGlyphe
+            case "half":
+               result =  Note.halfNoteGlyphe
+            case "eighth":
+               result = Note.eighthNoteGlyphe
+            case "quarter":
+               result = Note.quarterNoteGlyphe
+            case "16th":
+               result = Note.sixteenthNoteGlyphe
+           default:                            // TODO: à compléter
+               result = "??"
+         }
+      }
+      
+      if self.accidental != ""
+      {
+         switch self.accidental
+         {
+         case "sharp":
+            result += Note.dieseGlyphe
+         case "natural":
+            result += Note.becarreGlyphe
+         case "flat":
+            result += Note.bemolGlyphe
+         default:
+            result += ""
+         }
+      }
+
+      return result
    }
    
    var hashValue: Int
@@ -156,8 +229,8 @@ class Note: Comparable, Hashable, CustomStringConvertible
    
    var description: String
    {
+      return self.stepF + self.glyphe
       //return self.step + "\(self.octave)" + self.glyphe+"m\(self.numMesure)"
-      return self.toChaineSimple()
    }
    
    /**
@@ -264,6 +337,7 @@ class Note: Comparable, Hashable, CustomStringConvertible
    }
    /******************************************************************************************
     Retourne la note située à "nb" de demi-tons de la note actuelle
+    (la note retournée peut être dièse ou bémol)
     ******************************************************************************************/
    func shift(nb demiTons: Int) -> Note?
    {
@@ -277,6 +351,28 @@ class Note: Comparable, Hashable, CustomStringConvertible
          return nil
       }
    }
+   /******************************************************************************************
+    Retourne la note située à "nd" dedrés de la note actuelle
+    
+    ******************************************************************************************/
+   func shift(nd degre: Int) -> Note?
+   {
+      let deg = note2degres[self.step]! + degre
+      let reste = deg % 7
+      
+      if let key = note2degres.someKey(forValue: reste)
+      {
+         return Note(step: key, accidental: "")
+      }
+      else
+      {
+         print("erreur dans Note.shift(nd degre: Int) ")
+         return nil
+      }
+   }
+   
+   
 }
 
 //============================================================================================
+

@@ -15,12 +15,13 @@ class Mesure: CustomStringConvertible
                         // "forward"=début de zone de répétition
                         // "" sinon
    var numero = 0       // numéro de la mesure
+   var porteeId = ""    // identification de la portée à laquelle appartient la mesure
    
    var description: String
    {
       var result = ""
       
-      result += "[mesure \(numero): "
+      result += "[mesure \(numero) de portée \(porteeId) : "
       for note in notes
       {
          result += String(describing: note) + " "

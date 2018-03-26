@@ -36,7 +36,6 @@ class ViewController: NSViewController,XMLParserDelegate
    var nbOfAccidentals: Int = 0  // nb de dièses (si >0) ou bémols (si <0) à la clef
    var numMesure = 0             // n° de la mesure à laquelle appartient la note
    var repeatDirection = ""      // direction de la répétition "backward" ou "forward"
-   var staff: Int = 0            // Portée
    
    var porteeId = ""
    var porteeName = ""
@@ -127,12 +126,6 @@ class ViewController: NSViewController,XMLParserDelegate
          self.step = self.foundCharacters
       }
       
-      if elementName == "rest"
-      {
-         self.step = ""
-      }
-
-      
       if elementName == "octave"
       {
          self.octave = Int(self.foundCharacters)!
@@ -173,11 +166,6 @@ class ViewController: NSViewController,XMLParserDelegate
       if elementName == "instrument-name"
       {
          self.porteeInstrument = self.foundCharacters
-      }
-
-      if elementName == "staff"
-      {
-         self.staff = self.foundCharacters
       }
 
       // Si on atteint </note>
@@ -233,8 +221,6 @@ class ViewController: NSViewController,XMLParserDelegate
 
    /**********************************************************************************************************
     Appelée lorsque le parser à terminé et atteint la fin du document.
-    
-    (pour l'ancienne version : celle qui crée une nouvelle partition, cf. old_ViewController.swift
     *********************************************************************************************************/
    func parserDidEndDocument(_ parser: XMLParser)
    {
@@ -251,14 +237,157 @@ class ViewController: NSViewController,XMLParserDelegate
       print("Nombre de mesures : \(self.mesures.count)")
       */
       
-      print("Nombre de notes : \(self.notes.count)")
-      print("Nombre de mesures : \(self.mesures.count)")
-      var i = 0
-      for mes in mesures
+      // pour vérif
+      var uneGamme = Gamme(nombre: 0, accident: "flat",mode: "M")
+      print("\nGamme : \(uneGamme) et ses notes : \(uneGamme.notes))")
+      print("et sa gamme relative = \(uneGamme.gammeRelative()) : \(uneGamme.gammeRelative().notes)")
+      
+      uneGamme = Gamme(nombre: 1, accident: "flat",mode: "m")
+      print("\nGamme : \(uneGamme) et ses notes : \(uneGamme.notes))")
+      print("et sa gamme relative = \(uneGamme.gammeRelative()) : \(uneGamme.gammeRelative().notes)")
+
+      
+      
+      //propageAlterationInMeasure()
+      propageAlterationALaClef()
+      
+      print(String(describing: mesures[26]))
+      
+      nbNotes = compteNotes()
+      print("Nombre de notes différentes : \(self.nbNotes)")
+      
+      let sortedArray = self.nbOccNotes.sorted(by: <)
+      print("_____________________nbOccNotes_________________________")
+      print(nbOccNotes)
+      print("_____________________sortedArray_________________________")
+      print(sortedArray)
+      print("______________________arrayNoteNombre________________________")
+      print(self.arrayNoteNombre)
+      print("______________________arrayNote________________________")
+      self.arrayNote = self.arrayNoteNombre.map {$0.note}
+      print(self.arrayNote)
+
+      
+      // Création du dictionnary associant à chacune des notes utilisées un indice de 0...self.nbNotes-1
+      // dans l'ordre croissant des notes (C4 D4 E4 F4 G4 A4 B4 C5 ...)
+      var dicoNote2Ind: [Note: Int] = [:]
+      var indice = 0
+      for (note,_) in self.arrayNoteNombre
       {
-         i += 1
-         print("mesure[\(i)] : \(mes)")
+         dicoNote2Ind[note] = indice
+         indice += 1
       }
+      print("______________________dicoNote2Ind______________________")
+      print(dicoNote2Ind)
+      // Création d'une nouvelle liste-succession des notes où chaque note est remplacée par
+      // son indice obtenu dans le dico. dicoNote2Ind
+      let partitionEnIndices = self.notes.map({ dicoNote2Ind[$0]})
+      print("______________________partitionEnIndices______________________")
+      //print(partitionEnIndices)
+      
+      // ============ Création de la matrice de transition (ordre1) ==================================
+      var matTransition = Matrice(nbl: self.nbNotes)
+      
+      for i in 0...partitionEnIndices.count-2
+      {
+         let indL = partitionEnIndices[i]
+         let indC = partitionEnIndices[i+1]
+         matTransition[indL!,indC!] += 1
+      }
+      matTransition = matTransition.stochastique()!
+      //print("matTransition (\(matTransition.dim())) :\n\(matTransition)")
+ 
+      
+      // ============ Création de la matrice de transition réduite (ordre2) ============================
+      // On construit un Array de (note(Int) à t-2, note(Int) à t-1) où l'indice -> indice ligne pour matrice
+      var arrayCoupleNotes: [CoupleInt] = []
+      for i in 0...partitionEnIndices.count-3
+      {
+         let coupleNotes: CoupleInt = CoupleInt(partitionEnIndices[i]!,partitionEnIndices[i+1]!)
+         if !arrayCoupleNotes.contains(coupleNotes)
+         {
+            arrayCoupleNotes.append(coupleNotes)
+         }
+      }
+      
+      var matTransitionO2 = Matrice(nbl: arrayCoupleNotes.count, nbc: self.nbNotes)
+      for i in 0...partitionEnIndices.count-3
+      {
+         let indL = arrayCoupleNotes.index(of: CoupleInt(partitionEnIndices[i]!,partitionEnIndices[i+1]!))
+         let indC = partitionEnIndices[i+2]
+         matTransitionO2[indL!,indC!] += 1
+      }
+      matTransitionO2 = matTransitionO2.stochastique()!
+      // =================================================================================================
+      
+      
+      
+      
+      
+      // ============== Génération d'une suite de notes selon la matrice de transition  ===========
+      //--- à l'ordre 1 ou 2 --------
+      let ordre = 2
+      var nbNotesAGenerer = 0
+      var tableauNotesGenerees: [Int] = []
+      // en fonction de l'ordre de la matrice de transition
+      if ordre == 1
+      {
+         // D'abord un tableau d'entiers représentant ces notes
+         // on part d'un Ré : D5 : 8
+         nbNotesAGenerer = notes.count-1
+         print("nbNotesAGenerer : \(nbNotesAGenerer)")
+         tableauNotesGenerees = [8]
+         for i in 0..<nbNotesAGenerer
+         {
+            let lesProbas: [Double] = matTransition.ligne(tableauNotesGenerees[i]).array()
+            tableauNotesGenerees.append(Int.random(proba: lesProbas))
+         }
+      }
+      if ordre == 2
+      {
+         // D'abord un tableau d'entiers représentant ces notes
+         // on part d'un Ré : D5 : 8 suivi d'un Ré
+         nbNotesAGenerer = notes.count-2
+         print("nbNotesAGenerer : \(nbNotesAGenerer)")
+         tableauNotesGenerees = [8,8]
+         for i in 0..<nbNotesAGenerer
+         {
+            // on déduit l'indice ligne de la matrice de trans. du dernier couple de notes
+            // à partir de "arrayCoupleNotes"
+            let indLigne = arrayCoupleNotes.index(of: CoupleInt(tableauNotesGenerees[i],tableauNotesGenerees[i+1]))
+            let lesProbas: [Double] = matTransitionO2.ligne(indLigne!).array()
+            tableauNotesGenerees.append(Int.random(proba: lesProbas))
+         }
+      }
+
+      
+      
+      // on transforme ce tableau de nombres (Int) en tableau de notes (Note)
+      for i in 0..<tableauNotesGenerees.count
+      {
+         let nouvelleNote = Note(dicoNote2Ind.someKey(forValue: tableauNotesGenerees[i])!)
+         nouvelleNote.numMesure = notes[i].numMesure  // on met à jour le n° de mesure de la nouvelle note
+         tableauFinalNotesGenerees.append(nouvelleNote)
+      }
+      
+      //print("tableauFinalNotesGenerees :\n \(tableauFinalNotesGenerees)")   // pour verif
+      
+      // ---- Génération d'un tableau de tuples (ancienneNote, nouvelleNote) -----
+      var ancienne2nouvelleNote: [(ancN: Note , nouvN: Note)] = []
+      indice = 0
+      //print("notes.count : \(notes.count)   notes.count : \(notes.count)")
+      for note in self.notes
+      {
+         ancienne2nouvelleNote.append((note,tableauFinalNotesGenerees[indice]))
+         indice += 1
+      }
+      //============================================================================================
+      
+      //------------------- Génère le nouveau fichier ------------------------------
+      //genereNewFile("AriaII-O2")
+
+      let unAccord = Accord(fondammentale: Note(step: "B",accidental: ""), mode: "M", degre: 3, augmente: "")
+      print("unAccord : \(unAccord) : \(unAccord.notes)")
 
       
       
